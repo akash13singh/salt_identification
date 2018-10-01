@@ -7,9 +7,8 @@ sns.set_style("white")
 
 from sklearn.model_selection import train_test_split
 #from tqdm import tqdm_notebook , tnrange
-from skimage.io import imread, imshow #, concatenate_images
 from skimage.transform import resize
-from skimage.morphology import label
+
 
 from keras.preprocessing.image import array_to_img, img_to_array, load_img,save_img
 from keras.models import Model, load_model, save_model
@@ -91,16 +90,14 @@ def augment_data(images):
     #return augmented_imgs
 
 #Data augmentation
-print(x_train.shape)
-x_train = np.append(x_train, [np.fliplr(x) for x in x_train], axis=0)
-y_train = np.append(y_train, [np.fliplr(x) for x in y_train], axis=0)
-print(x_train.shape)
+#x_train = np.append(x_train, [np.fliplr(x) for x in x_train], axis=0)
+#y_train = np.append(y_train, [np.fliplr(x) for x in y_train], axis=0)
 
-# print(x_train.shape)
-# x_train = np.concatenate(augment_data(x_train))
-# y_train = np.concatenate(augment_data(y_train))
-# print(x_train.shape)
-
+print(x_train.shape)
+x_train = np.concatenate(augment_data(x_train))
+y_train = np.concatenate(augment_data(y_train))
+print(x_train.shape)
+print(y_train.shape)
 
 
 
@@ -141,7 +138,7 @@ model.compile(loss=lovasz_loss, optimizer=c, metrics=[my_iou_metric_2])
 
 print(model.summary())
 
-early_stopping = EarlyStopping(monitor='val_my_iou_metric_2', mode = 'max',patience=20, verbose=1)
+early_stopping = EarlyStopping(monitor='val_my_iou_metric_2', mode = 'max',patience=25, verbose=1)
 model_checkpoint = ModelCheckpoint(save_model_lovasz_loss_name,monitor='val_my_iou_metric_2',
                                    mode = 'max', save_best_only=True, verbose=1)
 reduce_lr = ReduceLROnPlateau(monitor='val_my_iou_metric_2', mode = 'max',factor=0.5, patience=10, min_lr=0.0001, verbose=1)
@@ -160,8 +157,13 @@ model = load_model(save_model_lovasz_loss_name,custom_objects={'my_iou_metric_2'
 
 
 def predict_result(model,x_test,img_size_target): # predict both orginal and reflect x
-    x_test_reflect =  np.array([np.fliplr(x) for x in x_test])
+    #x_test_augmented = augment_data(x_test)
+    #preds = np.zeros_like(x_test)
+    #print (len(x_test_augmented))
+    #for i in range(len(x_test_augmented)):
+    # TODO use all augmentations
     preds_test = model.predict(x_test).reshape(-1, img_size_target, img_size_target)
+    x_test_reflect =  np.array([np.fliplr(x) for x in x_test])
     preds_test2_refect = model.predict(x_test_reflect).reshape(-1, img_size_target, img_size_target)
     preds_test += np.array([ np.fliplr(x) for x in preds_test2_refect] )
     return preds_test/2
@@ -208,6 +210,8 @@ preds_test = predict_result(model,x_test,img_size_target)
 t1 = time.time()
 pred_dict = {idx: rle_encode(np.round(downsample(preds_test[i]) > threshold_best)) for i, idx in enumerate(test_df.index.values)}
 t2 = time.time()
+
+print("Usedtime = {t2-t1} s")
 
 sub = pd.DataFrame.from_dict(pred_dict,orient='index')
 sub.index.names = ['id']
